@@ -1,6 +1,7 @@
 #pragma once
 #include <random>
 #include <vector>
+#include <algorithm>
 
 #include "../Models/Move.h"
 #include "Board.h"
@@ -11,7 +12,7 @@ const int INF = 1e9;
 class Logic
 {
   public:
-    Logic(Board *board, Config *config) : board(board), config(config)
+    Logic(Board *board, Config *config) : board(board), config(config), Max_depth(0)
     {
         rand_eng = std::default_random_engine (
             !((*config)("Bot", "NoRandom")) ? unsigned(time(0)) : 0);
@@ -21,19 +22,36 @@ class Logic
 
     vector<move_pos> find_best_turns(const bool color)
     {
-        next_best_state.clear();
-        next_move.clear();
+        Max_depth = config->getBotLevel(color);
+        vector<move_pos> bestTurns;
+        int bestScore = -1000;
 
-        find_first_best_turn(board->get_board(), color, -1, -1, 0);
-
-        int cur_state = 0;
-        vector<move_pos> res;
-        do
+        find_turns(color);
+        for (move_pos& move : turns)
         {
-            res.push_back(next_move[cur_state]);
-            cur_state = next_best_state[cur_state];
-        } while (cur_state != -1 && next_move[cur_state].x != -1);
-        return res;
+            // Делаем ход
+            make_turn(move);
+            
+            // Рекурсивно ищем лучший ответ противника
+            int score = -find_best_turns_rec(1 - color, Max_depth - 1);
+            
+            // Возвращаем позицию
+            board->undoMove(move);
+            
+            // Обновляем лучший ход
+            if (score > bestScore)
+            {
+                bestScore = score;
+                bestTurns.clear();
+                bestTurns.push_back(move);
+            }
+            else if (score == bestScore)
+            {
+                bestTurns.push_back(move);
+            }
+        }
+
+        return bestTurns;
     }
 
 private:
@@ -305,12 +323,17 @@ private:
         }
     }
 
-  public:
+    void make_turn(const move_pos& move)
+    {
+        board->makeMove(move.x, move.y, move.x2, move.y2);
+    }
+
+public:
     vector<move_pos> turns;
     bool have_beats;
     int Max_depth;
 
-  private:
+private:
     default_random_engine rand_eng;
     string scoring_mode;
     string optimization;

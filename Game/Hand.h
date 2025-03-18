@@ -1,102 +1,45 @@
 #pragma once
-#include <tuple>
-
-#include "../Models/Move.h"
-#include "../Models/Response.h"
 #include "Board.h"
+#include "Response.h"
+#include <SFML/Graphics.hpp>
 
-// methods for hands
-class Hand
-{
-  public:
-    Hand(Board *board) : board(board)
-    {
+class Hand {
+private:
+    Board* board;
+    sf::RenderWindow& window;
+
+public:
+    Hand(Board* board, sf::RenderWindow& window) : board(board), window(window) {}
+
+    // Получение выбранной пользователем клетки
+    std::pair<int, int> getCell() {
+        sf::Vector2i mousePos = sf::Mouse::getPosition(window);
+        return {mousePos.y / 60, mousePos.x / 60};
     }
-    tuple<Response, POS_T, POS_T> get_cell() const
-    {
-        SDL_Event windowEvent;
-        Response resp = Response::OK;
-        int x = -1, y = -1;
-        int xc = -1, yc = -1;
-        while (true)
-        {
-            if (SDL_PollEvent(&windowEvent))
-            {
-                switch (windowEvent.type)
-                {
-                case SDL_QUIT:
-                    resp = Response::QUIT;
-                    break;
-                case SDL_MOUSEBUTTONDOWN:
-                    x = windowEvent.motion.x;
-                    y = windowEvent.motion.y;
-                    xc = int(y / (board->H / 10) - 1);
-                    yc = int(x / (board->W / 10) - 1);
-                    if (xc == -1 && yc == -1 && board->history_mtx.size() > 1)
-                    {
-                        resp = Response::BACK;
-                    }
-                    else if (xc == -1 && yc == 8)
-                    {
-                        resp = Response::REPLAY;
-                    }
-                    else if (xc >= 0 && xc < 8 && yc >= 0 && yc < 8)
-                    {
-                        resp = Response::CELL;
-                    }
-                    else
-                    {
-                        xc = -1;
-                        yc = -1;
-                    }
-                    break;
-                case SDL_WINDOWEVENT:
-                    if (windowEvent.window.event == SDL_WINDOWEVENT_SIZE_CHANGED)
-                    {
-                        board->reset_window_size();
-                        break;
-                    }
+
+    // Ожидание действия пользователя
+    Response wait() {
+        sf::Event event;
+        while (window.pollEvent(event)) {
+            if (event.type == sf::Event::Closed) {
+                return Response::QUIT;
+            }
+            if (event.type == sf::Event::KeyPressed) {
+                switch (event.key.code) {
+                    case sf::Keyboard::Escape:
+                        return Response::QUIT;
+                    case sf::Keyboard::R:
+                        return Response::REPLAY;
+                    case sf::Keyboard::B:
+                        return Response::BACK;
                 }
-                if (resp != Response::OK)
-                    break;
+            }
+            if (event.type == sf::Event::MouseButtonPressed) {
+                if (event.mouseButton.button == sf::Mouse::Left) {
+                    return Response::CELL;
+                }
             }
         }
-        return {resp, xc, yc};
+        return Response::OK;
     }
-
-    Response wait() const
-    {
-        SDL_Event windowEvent;
-        Response resp = Response::OK;
-        while (true)
-        {
-            if (SDL_PollEvent(&windowEvent))
-            {
-                switch (windowEvent.type)
-                {
-                case SDL_QUIT:
-                    resp = Response::QUIT;
-                    break;
-                case SDL_WINDOWEVENT_SIZE_CHANGED:
-                    board->reset_window_size();
-                    break;
-                case SDL_MOUSEBUTTONDOWN: {
-                    int x = windowEvent.motion.x;
-                    int y = windowEvent.motion.y;
-                    int xc = int(y / (board->H / 10) - 1);
-                    int yc = int(x / (board->W / 10) - 1);
-                    if (xc == -1 && yc == 8)
-                        resp = Response::REPLAY;
-                }
-                break;
-                }
-                if (resp != Response::OK)
-                    break;
-            }
-        }
-        return resp;
-    }
-
-  private:
-    Board *board;
 };

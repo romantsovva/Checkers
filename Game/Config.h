@@ -8,21 +8,23 @@ using json = nlohmann::json;
 class Config
 {
   public:
-    Config()
+    Config(const std::string& filename)
     {
-        reload();
+        reload(filename);
     }
 
-    void reload()
+    void reload(const std::string& filename)
     {
-        std::ifstream fin(project_path + "settings.json");
-        fin >> config;
-        fin.close();
+        std::ifstream file(filename);
+        if (file.is_open()) {
+            config = nlohmann::json::parse(file);
+        }
     }
 
-    auto operator()(const string &setting_dir, const string &setting_name) const
+    template<typename T>
+    T operator()(const std::string& path) const
     {
-        return config[setting_dir][setting_name];
+        return config.value(path, T());
     }
 
   private:

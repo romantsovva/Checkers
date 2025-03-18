@@ -2,6 +2,7 @@
 #include <iostream>
 #include <fstream>
 #include <vector>
+#include <SFML/Graphics.hpp>
 
 #include "../Models/Move.h"
 #include "../Models/Project_path.h"
@@ -22,6 +23,11 @@ public:
     Board() = default;
     Board(const unsigned int W, const unsigned int H) : W(W), H(H)
     {
+        board.resize(BOARD_SIZE, vector<int>(BOARD_SIZE, 0));
+        if (!pieceTexture.loadFromFile(textures_path + "pieces.png")) {
+            // Обработка ошибки загрузки текстуры
+        }
+        pieceSprite.setTexture(pieceTexture);
     }
 
     // draws start board
@@ -69,7 +75,7 @@ public:
             return 1;
         }
         SDL_GetRendererOutputSize(ren, &W, &H);
-        make_start_mtx();
+        initialize();
         rerender();
         return 0;
     }
@@ -79,7 +85,7 @@ public:
         game_results = -1;
         history_mtx.clear();
         history_beat_series.clear();
-        make_start_mtx();
+        initialize();
         clear_active();
         clear_highlight();
     }
@@ -214,29 +220,104 @@ public:
             quit();
     }
 
+    // Инициализация начальной позиции
+    void initialize() {
+        // Расставляем белые шашки
+        for (int row = 0; row < 3; row++) {
+            for (int col = 0; col < BOARD_SIZE; col++) {
+                if ((row + col) % 2 == 0) {
+                    mtx[row][col] = 2;
+                }
+            }
+        }
+
+        // Расставляем черные шашки
+        for (int row = 5; row < BOARD_SIZE; row++) {
+            for (int col = 0; col < BOARD_SIZE; col++) {
+                if ((row + col) % 2 == 0) {
+                    mtx[row][col] = 1;
+                }
+            }
+        }
+    }
+
+    // Проверка валидности хода
+    bool isValidMove(int fromRow, int fromCol, int toRow = -1, int toCol = -1) {
+        if (fromRow < 0 || fromRow >= BOARD_SIZE || fromCol < 0 || fromCol >= BOARD_SIZE) {
+            return false;
+        }
+
+        if (toRow == -1 || toCol == -1) {
+            return mtx[fromRow][fromCol] != 0;
+        }
+
+        if (toRow < 0 || toRow >= BOARD_SIZE || toCol < 0 || toCol >= BOARD_SIZE) {
+            return false;
+        }
+
+        if (mtx[toRow][toCol] != 0) {
+            return false;
+        }
+
+        // Проверка диагонального движения
+        if (std::abs(toRow - fromRow) != std::abs(toCol - fromCol)) {
+            return false;
+        }
+
+        // Проверка взятия шашки
+        if (std::abs(toRow - fromRow) == 2) {
+            int jumpedRow = (fromRow + toRow) / 2;
+            int jumpedCol = (fromCol + toCol) / 2;
+            if (mtx[jumpedRow][jumpedCol] == 0) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    // Выполнение хода
+    void makeMove(int fromRow, int fromCol, int toRow, int toCol) {
+        mtx[toRow][toCol] = mtx[fromRow][fromCol];
+        mtx[fromRow][fromCol] = 0;
+
+        // Если это взятие шашки
+        if (std::abs(toRow - fromRow) == 2) {
+            int jumpedRow = (fromRow + toRow) / 2;
+            int jumpedCol = (fromCol + toCol) / 2;
+            mtx[jumpedRow][jumpedCol] = 0;
+        }
+    }
+
+    // Отрисовка доски
+    void draw(sf::RenderWindow& window) {
+        // Отрисовка клеток доски
+        for (int row = 0; row < BOARD_SIZE; row++) {
+            for (int col = 0; col < BOARD_SIZE; col++) {
+                sf::RectangleShape square(sf::Vector2f(60, 60));
+                square.setPosition(col * 60, row * 60);
+                square.setFillColor((row + col) % 2 == 0 ? sf::Color::White : sf::Color::Black);
+                window.draw(square);
+
+                // Отрисовка шашек
+                if (mtx[row][col] != 0) {
+                    pieceSprite.setPosition(col * 60, row * 60);
+                    // Установка правильной текстуры в зависимости от цвета шашки
+                    pieceSprite.setTextureRect(sf::IntRect(
+                        (mtx[row][col] - 1) * 60, 0, 60, 60
+                    ));
+                    window.draw(pieceSprite);
+                }
+            }
+        }
+    }
+
 private:
     void add_history(const int beat_series = 0)
     {
         history_mtx.push_back(mtx);
         history_beat_series.push_back(beat_series);
     }
-    // function to make start matrix
-    void make_start_mtx()
-    {
-        for (POS_T i = 0; i < 8; ++i)
-        {
-            for (POS_T j = 0; j < 8; ++j)
-            {
-                mtx[i][j] = 0;
-                if (i < 3 && (i + j) % 2 == 1)
-                    mtx[i][j] = 2;
-                if (i > 4 && (i + j) % 2 == 1)
-                    mtx[i][j] = 1;
-            }
-        }
-        add_history();
-    }
-
     // function that re-draw all the textures
     void rerender()
     {
@@ -373,4 +454,7 @@ private:
     vector<vector<POS_T>> mtx = vector<vector<POS_T>>(8, vector<POS_T>(8, 0));
     // series of beats for each move
     vector<int> history_beat_series;
+    sf::Texture pieceTexture;
+    sf::Sprite pieceSprite;
+    static const int BOARD_SIZE = 8;
 };
